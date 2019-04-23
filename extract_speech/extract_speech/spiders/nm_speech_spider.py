@@ -1,6 +1,7 @@
 import os
 import scrapy
 from scrapy import Request
+import json
 
 ALLOWED_DOMAINS = ['www.narendramodi.in']
 ROOT_URL = 'https://www.narendramodi.in/speech/loadspeeche?page=%s&language=en'
@@ -15,7 +16,7 @@ class NMSpeechSpider(scrapy.Spider):
     root_url = ROOT_URL
 
     def start_requests(self):
-        for next_page in range(10):
+        for next_page in range(1,21):
             yield scrapy.Request(url = self.root_url % next_page, callback = self.parse_urls)
 
     def parse_urls(self, response):
@@ -24,21 +25,21 @@ class NMSpeechSpider(scrapy.Spider):
 
     def parse(self, response):
 
-        path = './data/'                
-        metafilename = 'mapping.txt'
+        path = './data/'              
         filename = 'speech' + response.url[-30:]
-
-        if os.path.exists(path + metafilename):
-            append_write = 'a' # append if already exists
-        else:
-            append_write = 'w' # make a new file if not
-
-        with open(path + metafilename, append_write, encoding='utf-8') as metafile:
-            metafile.write("%s:%s\r\n" % (filename, response.url) )
+        data = {}        
 
         with open(path + filename + '.txt', 'w', encoding='utf-8') as datafile:
+            data['title'] = response.xpath('//*[@id="detailNews"]//*[@id="article_title"]/descendant-or-self::text()').extract_first()
+            data['speechdate'] = response.xpath('//*[@id="detailNews"]/div/div/div/div//*[@class="captionDate"]/text()').extract_first()
+            data['url'] = response.url
+            data['filename'] = filename
+            content = u""           
             for item in response.xpath('//*[@id="detailNews"]/div/div/div/article/p/descendant-or-self::text()').extract():
-                datafile.write("%s\r\n" % item)
+                content = content + str(item) + '\r\n'
+            
+            data['content'] = content
+            json.dump(data, datafile, ensure_ascii=False)
                 
 
 

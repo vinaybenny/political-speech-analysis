@@ -5,7 +5,8 @@ import json
 
 ALLOWED_DOMAINS = ['www.narendramodi.in']
 ROOT_URL = 'https://www.narendramodi.in/speech/loadspeeche?page=%s&language=en'
-
+DATA_DIRECTORY = "./data/"
+PAGES_TO_CRAWL = 20
 custom_settings = {
         "DOWNLOAD_DELAY": 5,
         "CONCURRENT_REQUESTS_PER_DOMAIN": 2
@@ -16,7 +17,7 @@ class NMSpeechSpider(scrapy.Spider):
     root_url = ROOT_URL
 
     def start_requests(self):
-        for next_page in range(1,21):
+        for next_page in range(1,PAGES_TO_CRAWL + 1):
             yield scrapy.Request(url = self.root_url % next_page, callback = self.parse_urls)
 
     def parse_urls(self, response):
@@ -25,7 +26,7 @@ class NMSpeechSpider(scrapy.Spider):
 
     def parse(self, response):
 
-        path = './data/'              
+        path = DATA_DIRECTORY             
         filename = 'speech' + response.url[-30:]
         data = {}        
 

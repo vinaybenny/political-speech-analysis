@@ -35,7 +35,7 @@ class NMSpeechSpider(scrapy.Spider):
             data['url'] = response.url
             data['filename'] = filename
             content = u""           
-            for item in response.xpath('//*[@id="detailNews"]/div/div/div/article/p/descendant-or-self::text()').extract():
+            for item in response.xpath('//*[@id="detailNews"]/div/div/div//*[@class="articleBody main_article_content"]//*[not(@class)]/descendant-or-self::text()').extract():
                 content = content + str(item) + '\r\n'
             
             data['content'] = content

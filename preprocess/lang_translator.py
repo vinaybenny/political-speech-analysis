@@ -1,6 +1,7 @@
 import json
 import os
 import time
+import re
 from googletrans import Translator
 import numpy.random
 import unicodedata as ud
@@ -54,42 +55,49 @@ if __name__== "__main__":
     for filename in os.listdir(directory):
         print("Starting translation for file %s" % filename)
         with open(directory + '/' + filename, encoding='utf-8') as json_file:  
-            data = json.load(json_file)        
-            sentences = data['content'].split('।')
+            data = json.load(json_file)
+            delimiters = ".", "।"
+            regexPattern = '|'.join(map(re.escape, delimiters))
+            sentences = re.split(regexPattern, data['content'])
             translated_list=[]
             sentence_count = len(sentences)
             iter_counter=1
 
-            for sentence in sentences:
-                # Check is the full sentence is in English. If so, no translation is required.
-                if only_roman_chars(sentence):
-                    translated_sentence = sentence
-                else:
-                    # Check whether the number of characters in the sentence is longer than 12k. If so, abort translation of current file.
-                    if len(sentence) > 12000:
-                        rejected_files.append(filename)
-                        print("File %s has been rejected from translation queue owing to sentences with more than 12k characters." % filename)
-                        continue
-                    # Apply Google translate to sentence
-                    translator = Translator()
-                    translated_sentence = translator.translate(sentence).text
+            # Check if the file content is completely in English. If so, we can skip any translations.
+            if only_roman_chars(data['content']):
+                translated_list.append(data['content'])
 
-                    # Add a bit of (capped) randomness to the time delay between successive google translate queries.
-                    wait_delay= round(numpy.random.normal(GTRANS_QUERY_DELAY, 2),1)
-                    if wait_delay < 1.9:
-                        wait_delay = 1.9
-                    elif wait_delay > 7.3:
-                        wait_delay = 7.3
+            else:
+                for sentence in sentences:
+                    #print(sentence)
+                    # Check is the full sentence is in English. If so, no translation is required.
+                    if only_roman_chars(sentence):
+                        translated_sentence = sentence
                     else:
-                        pass
-                    time.sleep(wait_delay)
-                
-                #print(sentence)
-                #print(translated_sentence)
-                translated_list.append(translated_sentence)
-                printProgressBar(iter_counter, sentence_count, prefix = 'Progress:', suffix = 'Complete', length = 50)
-                #print("%s / %s" % (iter_counter, sentence_count))                            
-                iter_counter += 1
+                        # Check whether the number of characters in the sentence is longer than 12k. If so, abort translation of current file.
+                        if len(sentence) > 12000:
+                            rejected_files.append(filename)
+                            print("File %s has been rejected from translation queue owing to sentences with more than 12k characters." % filename)
+                            continue
+                        # Apply Google translate to sentence
+                        translator = Translator()
+                        translated_sentence = translator.translate(sentence).text
+
+                        # Add a bit of (capped) randomness to the time delay between successive google translate queries.
+                        wait_delay= round(numpy.random.normal(GTRANS_QUERY_DELAY, 2),1)
+                        if wait_delay < 1.9:
+                            wait_delay = 1.9
+                        elif wait_delay > 7.3:
+                            wait_delay = 7.3
+                        else:
+                            pass
+                        time.sleep(wait_delay)
+                    
+                    #print(translated_sentence)
+                    translated_list.append(translated_sentence)
+                    printProgressBar(iter_counter, sentence_count, prefix = 'Progress:', suffix = 'Complete', length = 50)
+                    #print("%s / %s" % (iter_counter, sentence_count))                            
+                    iter_counter += 1
 
         translated_data = ". ".join(translated_list)
         data['translated_data'] = translated_data
@@ -99,3 +107,8 @@ if __name__== "__main__":
             json.dump(data, datafile, ensure_ascii=False)
 
         os.remove(directory + '/' + filename)
+        
+        # Print rejected files into a log.
+        with open(directory + '_translated/rejectedfiles.txt', 'w', encoding='utf-8') as f:
+            for item in rejected_files:
+                f.write("%s\n" % item)

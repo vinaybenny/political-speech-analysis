@@ -5,7 +5,7 @@ import json
 
 ALLOWED_DOMAINS = ['www.narendramodi.in']
 ROOT_URL = 'https://www.narendramodi.in/speech/loadspeeche?page=%s&language=en'
-DATA_DIRECTORY = "./data/"
+DATA_DIRECTORY = "../data/data_scraped/"
 PAGES_TO_CRAWL = 20
 custom_settings = {
         "DOWNLOAD_DELAY": 5,

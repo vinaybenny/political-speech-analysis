@@ -8,7 +8,7 @@ import unicodedata as ud
 
 latin_letters= {}
 GTRANS_QUERY_DELAY = 3
-DATA_DIRECTORY = "../extract_speech/data"
+DATA_DIRECTORY = "./data/data_scraped"
 
 def is_latin(uchr):
     try: return latin_letters[uchr]

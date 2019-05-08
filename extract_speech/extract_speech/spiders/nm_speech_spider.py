@@ -44,6 +44,4 @@ class NMSpeechSpider(scrapy.Spider):
                 
 
 
-            
-
-
+ 

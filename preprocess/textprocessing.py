@@ -1,6 +1,8 @@
+# This code borrows helper functions from GitHub repository : llefebure/un-general-debates, by Luke Lefebure
+
 import os
 import json
-import re, string, unicodedata
+import re, unicodedata
 import nltk
 import contractions
 import inflect
@@ -10,26 +12,23 @@ from nltk.corpus import stopwords
 from pandas import DataFrame, Series, read_json, to_datetime
 import itertools
 from collections import defaultdict
-import pickle
 
 import gensim
-from gensim.models import CoherenceModel, LdaModel, ldaseqmodel
+from gensim.models import CoherenceModel, LdaModel, ldaseqmodel, LdaMulticore
 from gensim.models.wrappers import LdaMallet, DtmModel
 from gensim.corpora import Dictionary
 
 import pyLDAvis.gensim
 from pprint import pprint
-import operator
 
 import spacy, en_core_web_sm
 import matplotlib.pyplot as plt
 
-import logging
 
-
-DTM_BINARY = "./lib/dtm-win64.exe"
+DTM_BINARY = "./lib/dtm/dtm-win64.exe"
 DATA_DIRECTORY = "./data/data_scraped_translated"
 #DATA_DIRECTORY = "./data/test"
+#MALLET_BINARY = "./lib/mallet/bin/mallet.bat"
 
 def strip_html(text):
     soup = BeautifulSoup(text, "html.parser")
@@ -78,31 +77,25 @@ def replace_numbers(words):
             new_words.append(word)
     return new_words
 
-def remove_stopwords(words):
-    """Remove stop words from list of tokenized words"""
-    new_words = []
 
-    # Set up NLTK's stop word corpus.
+def lemmatize_remove_stopwords(docs, allowed_postags=['NOUN', 'ADJ', 'VERB', 'ADV']):
     stop_words = stopwords.words('english')
-
-    # List extra words to be discarded from tokens
     stop_words.extend(['ji', 'twitter'\
-#        , 'come', 'today', 'work', 'year', 'brother_sister', 'time', 'go', 'give', 'tell', 'say', 'want', 'get', 'day', 'thing', 'brother'\
+        ,'brother_sister', 'brother', 'sister', 'do_not', 'should_not', 'will_not', 'can_not', 'today', 'year', 'time'\
+        ,'come'
+#        , 'work', 'go', 'give', 'tell', 'say', 'want', 'get', 'day', 'thing'\
 #        , 'way', 'see', 'crore', 'bring', 'take', 'man', 'lot', 'hand'\
 #        , 'country', 'people', 'government', 'india'\
 #        , 'do_not', 'will_not', 'not_only'
             ])
-
-    # Set up spacy's stop word list
     nlp = en_core_web_sm.load()
+    nlp.Defaults.stop_words |= {word for word in stop_words}   
+    cleaned_docs =[]
+    for doc in nlp.pipe([x.lower() for x in docs.values], batch_size=50):
+        doc = [token.lemma_ for token in doc if ( not(token.is_stop) and not(token.is_punct) and token.pos_ in allowed_postags ) ]
+        cleaned_docs.append(doc)
+    return cleaned_docs
 
-    # Create a combination of spacy and nltk stop words
-    nlp.Defaults.stop_words |= {word for word in stop_words}
-
-    for word in words:
-        if not(nlp.vocab[word].is_stop):
-            new_words.append(word)
-    return new_words
 
 def make_ngrams(docs):
     bigram = gensim.models.Phrases(docs, min_count=3, threshold=5)
@@ -115,17 +108,11 @@ def make_ngrams(docs):
     trigram_words = [trigram_phraser[bigram_phraser[doc]] for doc in docs]   
     return DataFrame({'test_set': trigram_words})   
 
-def lemmatize(words, allowed_postags=['NOUN', 'ADJ', 'VERB', 'ADV']):
-    nlp = en_core_web_sm.load()
-    doc = nlp(" ".join(words)) 
-    words_out = [token.lemma_ for token in doc if token.pos_ in allowed_postags]
-    return words_out
-
-def word_tokenize(text):
-    return gensim.utils.simple_preprocess(str(text), deacc=True, min_len=2, max_len=20)
-
 def paragraph_tokenize(text):
-    '''Returns a list of paragraphs for each text'''
+    '''
+    Returns a list of paragraphs for each text
+    Borrowed from Github repository : llefebure/un-general-debates
+    '''
     sentence_tokenizer = nltk.tokenize.PunktSentenceTokenizer()
     sentence_spans = list(sentence_tokenizer.span_tokenize(text))
     breaks = []
@@ -151,11 +138,9 @@ def paragraph_tokenize(text):
 def normalize(words):
     words = replace_contractions(words)
     words = remove_special_occurences(words)
-    words = word_tokenize(words)    
-    words = remove_non_ascii(words)
-    words = remove_punctuation(words)
-    words = replace_numbers(words)    
-    words = lemmatize(words, allowed_postags=['NOUN', 'ADJ', 'VERB', 'ADV'])  
+#    words = remove_non_ascii(words)
+#    words = remove_punctuation(words)
+#    words = replace_numbers(words)
     return words
 
 
@@ -177,14 +162,102 @@ def tune_lda_model(dictionary, corpus, texts, limit, start=2, step=3):
     model_list = []
     for num_topics in range(start, limit, step):
         print("Number of Topics is {}".format(num_topics))
-        model = LdaModel(corpus=corpus, num_topics=num_topics, alpha='auto', eta='auto', id2word=dictionary, chunksize=500, passes=50 \
-                         , iterations = 150, random_state = 12345, minimum_probability = 0.05, decay=0.5)
+        model = LdaModel(corpus=corpus, num_topics=num_topics, alpha='symmetric', eta='auto', id2word=dictionary, chunksize=500, passes=50 \
+                         ,iterations = 150, random_state = 12345, minimum_probability = 0.05, decay=0.5)
+        
         model_list.append(model)
-        coherencemodel = CoherenceModel(model=model, texts=texts, dictionary=dictionary, coherence='u_mass')
+        coherencemodel = CoherenceModel(model=model, texts=texts, dictionary=dictionary, coherence='c_v')
         print("Coherence score is {}".format(coherencemodel.get_coherence()))
         print('Perplexity: ', model.log_perplexity(corpus))
         coherence_values.append(coherencemodel.get_coherence())
     return model_list, coherence_values
+
+def tune_dtm_model(dictionary, corpus, texts, times, limit, start=2, step=3):
+    coherence_values = []
+    model_list = []
+    for num_topics in range(start, limit, step):
+        print("Number of Topics is {}".format(num_topics))
+        model = DtmModel(DTM_BINARY, corpus=corpus, id2word=dictionary, time_slices=times, num_topics=num_topics\
+                          ,lda_sequence_min_iter=50, lda_sequence_max_iter=150, lda_max_em_iter=150, rng_seed = 12345\
+                          ,alpha=0.05, top_chain_var=0.05)
+        model_list.append(model)        
+        # FInd Coherence for each time slice
+        coherence_n = []
+        for time_slice in range(len(time_slices)):
+            topics_n_t = model.dtm_coherence(time=time_slice)
+            coherence_model_t = CoherenceModel(topics=topics_n_t, corpus=corpus, texts=texts, dictionary=dictionary, coherence='c_v')   
+            print ("Coherence for time slice %d is " % time_slice, coherence_model_t.get_coherence())
+            coherence_n.append(coherence_model_t.get_coherence())        
+        
+        print("Average Coherence score is {}".format(np.mean(coherence_n)))
+        coherence_values.append(np.mean(coherence_n))
+    return model_list, coherence_values
+
+def term_distribution(model, term, topic):
+    """Extracts the probability over each time slice of a term/topic pair."""
+    word_index = model.id2word.token2id[term]
+    topic_slice = np.exp(model.lambda_[topic])
+    topic_slice = topic_slice / topic_slice.sum(axis=0)
+    return topic_slice[word_index]
+
+    
+def plot_terms(model, topic, terms, title=None, name=None, hide_y=True):
+    """Creates a plot of term probabilities over time in a given topic."""
+    fig, ax = plt.subplots()
+    plt.style.use('fivethirtyeight')
+    for term in terms:
+        ax.plot(
+            range(6), term_distribution(model, term, topic),
+            label=term)
+    leg = ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+    if hide_y:
+        ax.set_yticklabels([])
+    ax.set_ylabel('Probability')
+    if title:
+        ax.set_title(title)
+    if name:
+        fig.savefig(
+            name, dpi=300, bbox_extra_artists=(leg,), bbox_inches='tight')
+    return fig, ax
+
+def top_term_table(model, topic, slices, topn=10):
+    """Returns a dataframe with the top n terms in the topic for each of
+    the given time slices."""
+    data = {}
+    for time_slice in slices:
+        time = np.where(model.time_slice_labels == time_slice)[0][0]
+        data[time_slice] = [
+            term for p, term
+            in model.show_topic(topic, time=time, topn=topn)
+        ]
+    return DataFrame(data)
+
+def term_distribution_ldaseq(model, term, topic):
+    """Extracts the probability over each time slice of a term/topic pair."""
+    word_index = model.id2word.token2id[term]
+    topic_slice = np.exp(model.topic_chains[topic].e_log_prob)
+    topic_slice = topic_slice / topic_slice.sum(axis=0)
+    return topic_slice[word_index]
+
+def plot_terms_lda(model, topic, terms, title=None, name=None, hide_y=True):
+    """Creates a plot of term probabilities over time in a given topic."""
+    fig, ax = plt.subplots()
+    plt.style.use('fivethirtyeight')
+    for term in terms:
+        ax.plot(
+            range(6), term_distribution_ldaseq(model, term, topic),
+            label=term)
+    leg = ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+    if hide_y:
+        ax.set_yticklabels([])
+    ax.set_ylabel('Probability')
+    if title:
+        ax.set_title(title)
+    if name:
+        fig.savefig(
+            name, dpi=300, bbox_extra_artists=(leg,), bbox_inches='tight')
+    return fig, ax
+
 
 if __name__== "__main__":
 
@@ -214,13 +287,13 @@ if __name__== "__main__":
     ############### Apply data pre-processing & lemmatisation ##############       
     
     filedata['cleaned_data'] = filedata['translated_data'].apply(normalize)
+    filedata['cleaned_data'] = lemmatize_remove_stopwords(filedata['cleaned_data'], allowed_postags=['NOUN', 'ADJ', 'VERB', 'ADV'])
     filedata['cleaned_data'] = make_ngrams(filedata['cleaned_data'])
-    filedata['cleaned_data'] = filedata['cleaned_data'].apply(remove_stopwords)    
     paragraph_data['paragraphs'] = paragraph_data['paragraphs'].apply(normalize)
-    paragraph_data = paragraph_data[paragraph_data['paragraphs'].map(lambda d: len(d)) > 15]
+    paragraph_data['paragraphs'] = lemmatize_remove_stopwords(paragraph_data['paragraphs'], allowed_postags=['NOUN', 'ADJ', 'VERB', 'ADV'])
+    paragraph_data = paragraph_data[paragraph_data['paragraphs'].map(lambda d: len(d)) > 10]
     paragraph_data = paragraph_data.reset_index(drop=True)
     paragraph_data['paragraphs'] = make_ngrams(paragraph_data['paragraphs'])
-    paragraph_data['paragraphs'] = paragraph_data['paragraphs'].apply(remove_stopwords)
     
 
     # Compactify the paragraph dataframe to remove rows with blank cleaned data.
@@ -260,19 +333,23 @@ if __name__== "__main__":
     dm_files = DtmModel(DTM_BINARY, corpus=corpus_files, id2word=dictionary_files, time_slices=filedata.groupby('month_year')['month_year'].count().tolist(), num_topics=16)
     
     ############## 4:  Try a dynamic topic model for paragraphs ##############
-    dm_para = DtmModel(DTM_BINARY, corpus=corpus_para, id2word=dictionary_para, time_slices=full_data.groupby('month_year')['month_year'].count().tolist(), num_topics=16)    
-    ldaseq_para = ldaseqmodel.LdaSeqModel(corpus=corpus_para, id2word=dictionary_para, time_slice=full_data.groupby('month_year')['month_year'].count().tolist(), num_topics=16)
+    time_slices = full_data.groupby('month_year')['month_year'].count().tolist()
+    dm_list_para, dm_coherence_para = tune_dtm_model(dictionary_para, corpus_para, full_data['paragraphs'], time_slices, start = 14, limit = 20, step = 2)
+    best_dtm_para = dm_list_para[np.argmax(dm_coherence_para)]
     # Save the dynamic model
-    dm_para.save(os.path.join('.\\data\\', 'dtm.gensim'))    
-    topics = dm_para.show_topic(topicid=7, time=5, num_words=15)
-      
-    # View Coherence for specific time slices
-    dm_para_time = dm_para.dtm_coherence(time=3)
-    coherence_dm_para_time = CoherenceModel(topics=dm_para_time, corpus=corpus_para, dictionary=dictionary_para, coherence='u_mass')    
-    print ("U_mass topic coherence")
-    print ("Wrapper coherence is ", coherence_dm_para_time.get_coherence())
+    best_dtm_para.save(os.path.join('.\\data\\', 'dtm.gensim'))
+    
+    top_term_table(best_dtm_para, topic = 0, slices = range(1,7), topn = 10)
     
     
+    
+#    ldaseq_para = ldaseqmodel.LdaSeqModel(corpus=corpus_para, id2word=dictionary_para, time_slice=time_slices, num_topics=14, random_state=12345\
+#                                          ,initialize='ldamodel',lda_model = best_model_para )    
+#    ldaseq_para.save(os.path.join('.\\models\\', 'ldaseq.gensim'))
+
+    
+    
+
 
 
 limit=30
@@ -286,9 +363,14 @@ plt.legend(("coherence_values"), loc='best')
 plt.show()
 
 pprint(best_model_para.print_topics(num_words=20))
-# doc_lda = lm_list[11][corpus]
+best_model_para.show_topics(formatted=False,num_words=10)
+best_model_para.top_topics(corpus = corpus_para, texts = full_data['paragraphs'], dictionary=dictionary_para, coherence='c_v')
 
 
+best_dtm_para.show_topics(num_topics=-1, times=1, num_words=100, formatted=True)
+plot_terms(best_dtm_para, topic = 1, terms = ['congress', 'terrorism'], title=None, name=None, hide_y=True)
+coherence_model_t = CoherenceModel(topics=best_dtm_para.dtm_coherence(time = 1), corpus=corpus_para, texts=full_data['paragraphs'], dictionary=dictionary_para, coherence='c_v')
+coherence_model_t.get_coherence_per_topic()
 
 
 
@@ -302,14 +384,7 @@ texts = [
      for text in paragraph_data['paragraphs']
  ]
 
-print(texts)
-
-nlp = en_core_web_sm.load()
-doc = nlp(filedata['translated_data'][0])
-d = []
-for idno, sentence in enumerate(doc.sents):
-    d.append({"id": idno, "sentence":str(sentence)})
-    print('Sentence {}:'.format(idno + 1), sentence) 
-df = pd.DataFrame(d)
-df.set_index('id', inplace=True)
-print(df) 
+temp = defaultdict(int)
+for word_id, word_count in itertools.chain.from_iterable(corpus_para):
+    temp[dictionary_para[word_id]] += word_count
+sorted(temp.items(), key=lambda x: x[1], reverse=True)[:100]

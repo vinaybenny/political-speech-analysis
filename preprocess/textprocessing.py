@@ -225,10 +225,10 @@ def top_term_table(model, topic, slices, topn=10):
     the given time slices."""
     data = {}
     for time_slice in slices:
-        time = np.where(model.time_slice_labels == time_slice)[0][0]
+#        time = np.where(model.time_slice_labels == time_slice)[0][0]
         data[time_slice] = [
             term for p, term
-            in model.show_topic(topic, time=time, topn=topn)
+            in model.show_topic(topic, time=time_slice, topn=topn)
         ]
     return DataFrame(data)
 
@@ -339,15 +339,25 @@ if __name__== "__main__":
     # Save the dynamic model
     best_dtm_para.save(os.path.join('.\\data\\', 'dtm.gensim'))
     
-    top_term_table(best_dtm_para, topic = 0, slices = range(1,7), topn = 10)
+    top_term_table(best_dtm_para, topic = 7, slices = range(0,6), topn = 20)
+    best_dtm_para.show_topics(num_topics=-1, times=1, num_words=100, formatted=True)    
+    plot_terms(best_dtm_para, topic = 1, terms = ['congress', 'terrorism'], title=None, name=None, hide_y=True)
+    coherence_model_t = CoherenceModel(topics=best_dtm_para.dtm_coherence(time = 1), corpus=corpus_para, texts=full_data['paragraphs'], dictionary=dictionary_para, coherence='c_v')
+    coherence_model_t.get_coherence_per_topic()
+    
+    topic_word_prob = DataFrame(columns=['topic', 'time','word', 'prob'])
+    for topic in range(0, best_dtm_para.num_topics):
+        for time_slice in range(0,len(best_dtm_para.time_slices)):
+            df = DataFrame(best_dtm_para.show_topic(topic, time=time_slice, topn=100), columns = ['prob', 'word'])
+            df['topic'] = [topic] * df.shape[0]
+            df['time'] = [time_slice] * df.shape[0]                        
+            topic_word_prob = topic_word_prob.append(df)
     
     
     
 #    ldaseq_para = ldaseqmodel.LdaSeqModel(corpus=corpus_para, id2word=dictionary_para, time_slice=time_slices, num_topics=14, random_state=12345\
 #                                          ,initialize='ldamodel',lda_model = best_model_para )    
 #    ldaseq_para.save(os.path.join('.\\models\\', 'ldaseq.gensim'))
-
-    
     
 
 
@@ -367,10 +377,7 @@ best_model_para.show_topics(formatted=False,num_words=10)
 best_model_para.top_topics(corpus = corpus_para, texts = full_data['paragraphs'], dictionary=dictionary_para, coherence='c_v')
 
 
-best_dtm_para.show_topics(num_topics=-1, times=1, num_words=100, formatted=True)
-plot_terms(best_dtm_para, topic = 1, terms = ['congress', 'terrorism'], title=None, name=None, hide_y=True)
-coherence_model_t = CoherenceModel(topics=best_dtm_para.dtm_coherence(time = 1), corpus=corpus_para, texts=full_data['paragraphs'], dictionary=dictionary_para, coherence='c_v')
-coherence_model_t.get_coherence_per_topic()
+
 
 
 

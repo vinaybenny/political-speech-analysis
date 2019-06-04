@@ -9,7 +9,7 @@ import inflect
 import numpy as np
 from bs4 import BeautifulSoup
 from nltk.corpus import stopwords
-from pandas import DataFrame, Series, read_json, to_datetime, pivot_table
+from pandas import DataFrame, Series, read_json, to_datetime,pivot_table
 import itertools
 from collections import defaultdict
 
@@ -350,7 +350,7 @@ if __name__== "__main__":
         for time_slice in range(0,len(best_dtm_para.time_slices)):
             df = DataFrame(best_dtm_para.show_topic(topic, time=time_slice, topn=10), columns = ['prob', 'word'])
             df['topic'] = [topic] * df.shape[0]
-            df['time'] = [time_slice] * df.shape[0]                        
+            df['time'] = [full_data.groupby('month_year')['month_year'].count().index.tolist()[time_slice]] * df.shape[0]                        
             topic_word_prob = topic_word_prob.append(df)
     
     
@@ -359,7 +359,6 @@ if __name__== "__main__":
 #                                          ,initialize='ldamodel',lda_model = best_model_para )    
 #    ldaseq_para.save(os.path.join('.\\models\\', 'ldaseq.gensim'))
     
-
 
 
 limit=30

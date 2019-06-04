@@ -9,7 +9,7 @@ import inflect
 import numpy as np
 from bs4 import BeautifulSoup
 from nltk.corpus import stopwords
-from pandas import DataFrame, Series, read_json, to_datetime
+from pandas import DataFrame, Series, read_json, to_datetime, pivot_table
 import itertools
 from collections import defaultdict
 
@@ -337,18 +337,18 @@ if __name__== "__main__":
     dm_list_para, dm_coherence_para = tune_dtm_model(dictionary_para, corpus_para, full_data['paragraphs'], time_slices, start = 14, limit = 20, step = 2)
     best_dtm_para = dm_list_para[np.argmax(dm_coherence_para)]
     # Save the dynamic model
-    best_dtm_para.save(os.path.join('.\\data\\', 'dtm.gensim'))
-    
-    top_term_table(best_dtm_para, topic = 7, slices = range(0,6), topn = 20)
-    best_dtm_para.show_topics(num_topics=-1, times=1, num_words=100, formatted=True)    
-    plot_terms(best_dtm_para, topic = 1, terms = ['congress', 'terrorism'], title=None, name=None, hide_y=True)
-    coherence_model_t = CoherenceModel(topics=best_dtm_para.dtm_coherence(time = 1), corpus=corpus_para, texts=full_data['paragraphs'], dictionary=dictionary_para, coherence='c_v')
-    coherence_model_t.get_coherence_per_topic()
+    best_dtm_para.save(os.path.join('.\\models\\', 'dtm.gensim'))
+#    best_dtm_para = DtmModel.load(os.path.join('.\\models\\', 'dtm.gensim'))    
+#    top_term_table(best_dtm_para, topic = 7, slices = range(0,6), topn = 20)
+#    best_dtm_para.show_topics(num_topics=-1, times=1, num_words=100, formatted=True)    
+#    plot_terms(best_dtm_para, topic = 1, terms = ['congress', 'terrorism'], title=None, name=None, hide_y=True)
+#    coherence_model_t = CoherenceModel(topics=best_dtm_para.dtm_coherence(time = 1), corpus=corpus_para, texts=full_data['paragraphs'], dictionary=dictionary_para, coherence='c_v')
+#    coherence_model_t.get_coherence_per_topic()
     
     topic_word_prob = DataFrame(columns=['topic', 'time','word', 'prob'])
     for topic in range(0, best_dtm_para.num_topics):
         for time_slice in range(0,len(best_dtm_para.time_slices)):
-            df = DataFrame(best_dtm_para.show_topic(topic, time=time_slice, topn=100), columns = ['prob', 'word'])
+            df = DataFrame(best_dtm_para.show_topic(topic, time=time_slice, topn=10), columns = ['prob', 'word'])
             df['topic'] = [topic] * df.shape[0]
             df['time'] = [time_slice] * df.shape[0]                        
             topic_word_prob = topic_word_prob.append(df)

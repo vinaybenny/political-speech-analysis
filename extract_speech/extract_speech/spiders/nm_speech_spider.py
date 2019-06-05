@@ -54,7 +54,7 @@ class NMSpeechSpider(scrapy.Spider):
     def parse(self, response):
         # Create folders based on dates of speeches
         filepath = DATA_DIRECTORY + self.from_date.replace('/', '') + "-" + self.to_date.replace('/', '')
-        filename = 'speech' + response.url[-30:]  
+        filename = 'speech' + response.url[-40:]  
         data = {}
         soup = BeautifulSoup(response.body, 'lxml')        
         
@@ -71,8 +71,10 @@ class NMSpeechSpider(scrapy.Spider):
             # For speech content, we have 2 rules:
             #   1.Check inside <article> tag with appropriate class name, and find all direct child paragraphs OR
             #   2.Check for div tags, with tag class name "news-bg"
-            paragraphs = soup.find('article', class_= "articleBody main_article_content").\
-            find_all(lambda tag: tag and tag.name=="p" or (tag.name=="div" and "news-bg" in tag["class"]), recursive=False)    
+            paragraphs = soup.find('article', class_= "articleBody main_article_content").find_all( \
+                                  lambda tag: tag and tag.name=="p" \
+                                  or (tag.name=="div" and tag.has_attr("class") and "news-bg" in tag["class"]) \
+                                  , recursive=False)    
             
             for item in paragraphs:
                 content = content + str(item.text) +  ('\r\n' if len(str(item.text)) > self.min_paragraph_size else ' ' )

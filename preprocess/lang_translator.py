@@ -1,10 +1,18 @@
+# -*- coding: utf-8 -*-
+"""
+@created: 23 April 2019
+@author: vinay.benny
+@description: 
+"""
 import json
 import os
+import sys
 import time
 import re
 from googletrans import Translator
 import numpy.random
 import unicodedata as ud
+from argparse import ArgumentParser
 
 latin_letters= {}
 GTRANS_QUERY_DELAY = 3
@@ -47,10 +55,13 @@ def printProgressBar (iteration, total, prefix = '', suffix = '', decimals = 1, 
     if iteration == total: 
         print()
 
-if __name__== "__main__":
+if __name__== "__main__":   
 
+    parser = ArgumentParser()
+    parser.add_argument("-f", "--file", dest="src_directory", help="Source directory for input files", metavar="FILE")    
+    args = parser.parse_args()   
     rejected_files = []
-    directory = DATA_DIRECTORY
+    directory = DATA_DIRECTORY + '/' + args.src_directory
 
     for filename in os.listdir(directory):
         print("Starting translation for file %s" % filename)
@@ -102,13 +113,17 @@ if __name__== "__main__":
         translated_data = ". ".join(translated_list)
         data['translated_data'] = translated_data
         #print(translated_data)
-
-        with open(directory + '_translated/' + filename, 'w', encoding='utf-8') as datafile:
+        
+        tgtpath = DATA_DIRECTORY + '_translated/' + args.src_directory + '/' 
+        if not os.path.exists(tgtpath):
+            os.makedirs(tgtpath)
+        
+        with open(tgtpath + filename, 'w', encoding='utf-8') as datafile:
             json.dump(data, datafile, ensure_ascii=False)
 
-        os.remove(directory + '/' + filename)
+        #os.remove(directory + '/' + filename)
         
         # Print rejected files into a log.
-        with open(directory + '_translated/rejectedfiles.txt', 'w', encoding='utf-8') as f:
+        with open(DATA_DIRECTORY + '_translated/rejectedfiles.txt', 'w', encoding='utf-8') as f:
             for item in rejected_files:
                 f.write("%s\n" % item)

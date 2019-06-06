@@ -25,7 +25,7 @@ ROOT_URL = 'https://www.narendramodi.in/speech/searchspeeche?language=en&page=%s
 DATA_DIRECTORY = "../data/data_scraped/"    # Target directory for JSON files
 FROM_DATE = '01/01/2018'                    # Default from_date for filtering speeches based on date
 TO_DATE = '01/31/2018'                      # Default to_date for filtering speeches based on date
-PAGES_TO_CRAWL = 10                         # Default number of pages to crawl, within the results fetched by date filters 
+PAGES_TO_CRAWL = 30                         # Default number of pages to crawl, within the results fetched by date filters 
 MIN_PARAGRAPH_SIZE = 200                    # Default mininmum paragraph size, below which the paragraphs are treated as part of current paragraph 
 custom_settings = {
         "DOWNLOAD_DELAY": 5,                # Delay (in seconds) between successive hits on the domain
@@ -71,9 +71,13 @@ class NMSpeechSpider(scrapy.Spider):
             # For speech content, we have 2 rules:
             #   1.Check inside <article> tag with appropriate class name, and find all direct child paragraphs OR
             #   2.Check for div tags, with tag class name "news-bg"
+            #   3.Check for unordered list <ul> tags and extract text in these lists.
+            #   4.Check for ordered list <ol> tags and extract text in these lists.
             paragraphs = soup.find('article', class_= "articleBody main_article_content").find_all( \
                                   lambda tag: tag and tag.name=="p" \
                                   or (tag.name=="div" and tag.has_attr("class") and "news-bg" in tag["class"]) \
+                                  or (tag.name=="ul")
+                                  or (tag.name=="ol")
                                   , recursive=False)    
             
             for item in paragraphs:

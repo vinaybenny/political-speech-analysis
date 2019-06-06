@@ -2,11 +2,24 @@
 """
 @created: 23 April 2019
 @author: vinay.benny
-@description: 
+@description: For all scraped files present in .data/data_scraped folder, this program extracts those files that
+    are in non-latin character languages (or has some content that is in non-latin), and translates into English. Uses 
+    the python package "googletrans" (totally unethical). This script is intended to be a short-term stopgap until
+    this homemade proof-of-concept is completed. The script deliberately uses a sentence-by-sentence translation to
+    prevent causing unecessary load on google translate, and each successive translate query is delayed randomly with 
+    an average duration specified by constant "GTRANS_QUERY_DELAY". Still doesn't excuse the use of this backdoor, but
+    oh well. The code is to be run from command line, and needs specification of the source folder for the input files. 
+    The script has only been tested on content that is in Hindi language (or mix of Hindi & English) so far. If there
+    are any files that are completely in English, no google translate queries are made for those files, and are simply
+    skipped over. Invoke the script as follows:
+        python ./preprocess/lang_translator.py -f <foldername>
+    where foldername is the folder in "./data_scraped/" with all the files to be translated. Use this script after 
+    running the crawler "nm_speech_spider" in the "./extract_speech" folder.
+    
+    This code uses progress-bar function sourced from user "Greenstick" on StackOverflow - full credit.
 """
 import json
 import os
-import sys
 import time
 import re
 from googletrans import Translator

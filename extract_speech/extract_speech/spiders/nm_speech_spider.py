@@ -12,6 +12,9 @@
         1. "from_date" and "to_date": filters the domain for all speeches between these dates(both inclusive).
         2. "pages_to_crawl": the number of pages to crawl within the result pages fetched based on input from_date and to_date,
         3. "min_paragraph_size": all paragraphs of the speech less than this length is treated as part of the currently parsed paragraph.
+        
+    Invoke the script as follows (from "./political-speech-analysis/extract_speech" folder): 
+        scrapy crawl nmspeeches -a <startdate:mm/dd/yyyy> -a <enddate:mm/dd/yyyy>
 """
 import os
 import scrapy
@@ -73,11 +76,13 @@ class NMSpeechSpider(scrapy.Spider):
             #   2.Check for div tags, with tag class name "news-bg"
             #   3.Check for unordered list <ul> tags and extract text in these lists.
             #   4.Check for ordered list <ol> tags and extract text in these lists.
+            #   5.Check for div tag with an attribute "dir"
             paragraphs = soup.find('article', class_= "articleBody main_article_content").find_all( \
                                   lambda tag: tag and tag.name=="p" \
                                   or (tag.name=="div" and tag.has_attr("class") and "news-bg" in tag["class"]) \
-                                  or (tag.name=="ul")
-                                  or (tag.name=="ol")
+                                  or (tag.name=="ul") \
+                                  or (tag.name=="ol") \
+                                  or  (tag.name=="div" and tag.has_attr("dir")) \
                                   , recursive=False)    
             
             for item in paragraphs:

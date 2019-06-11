@@ -266,10 +266,11 @@ if __name__== "__main__":
 #    logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.INFO)
 
     # Load all files into memory as a list
-    for filename in os.listdir(directory):
-        with open(directory + '/' + filename, 'r',encoding='utf-8') as json_file:            
-            data = json.load(json_file)
-            filedata.append(data)
+    for root, subdir, files in os.walk(directory):
+        for filename in files:
+            with open(os.path.join(root, filename), 'r',encoding='utf-8') as json_file:
+                data = json.load(json_file)
+                filedata.append(data)
     
     # Convert the list into a pandas dataframe
     filedata = DataFrame(filedata)
@@ -334,10 +335,10 @@ if __name__== "__main__":
     
     ############## 4:  Try a dynamic topic model for paragraphs ##############
     time_slices = full_data.groupby('month_year')['month_year'].count().tolist()
-    dm_list_para, dm_coherence_para = tune_dtm_model(dictionary_para, corpus_para, full_data['paragraphs'], time_slices, start = 14, limit = 20, step = 2)
+    dm_list_para, dm_coherence_para = tune_dtm_model(dictionary_para, corpus_para, full_data['paragraphs'], time_slices, start = 12, limit = 30, step = 2)
     best_dtm_para = dm_list_para[np.argmax(dm_coherence_para)]
     # Save the dynamic model
-    best_dtm_para.save(os.path.join('.\\models\\', 'dtm.gensim'))
+    best_dtm_para.save(os.path.join('.\\models\\', 'dtm.gensim.no_above0.3'))
 #    best_dtm_para = DtmModel.load(os.path.join('.\\models\\', 'dtm.gensim'))    
 #    top_term_table(best_dtm_para, topic = 7, slices = range(0,6), topn = 20)
 #    best_dtm_para.show_topics(num_topics=-1, times=1, num_words=100, formatted=True)    
